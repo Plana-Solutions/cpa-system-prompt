@@ -28,10 +28,7 @@ func TestCallerSelectors(t *testing.T) {
 		{name: "matching scope", selector: valid, scope: scope, want: "personal"},
 		{name: "different scope", selector: valid, scope: other},
 		{name: "missing scope", selector: valid},
-		{name: "metadata fallback", selector: valid, metadata: map[string]any{"caller_scope": scope}, want: "personal"},
 		{name: "metadata wrong type", selector: valid, metadata: map[string]any{"caller_scope": 123}},
-		{name: "primary scope wins", selector: valid, scope: other, metadata: map[string]any{"caller_scope": scope}},
-		{name: "primary match wins", selector: valid, scope: scope, metadata: map[string]any{"caller_scope": other}, want: "personal"},
 		{name: "empty list", selector: "callers: []", scope: scope, wantProblem: "lists no callers"},
 		{name: "null", selector: "callers: null", scope: scope, wantProblem: "callers is not a list of caller scopes"},
 		{name: "implicit null", selector: "callers:", scope: scope, wantProblem: "callers is not a list of caller scopes"},
@@ -54,8 +51,10 @@ func TestCallerSelectors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			configureYAML(t, "rules:\n  - models: ['*']\n    label: personal\n    managed_by: test\n    "+tt.selector+"\n    prompt: personal\n")
 			req := interceptRequestFor(formatOpenAIResponses, "gpt-5.5", "gpt-5.5", `{"input":"hi"}`)
-			req.CallerScope = tt.scope
-			req.Metadata = tt.metadata
+			withCallerScope(&req, tt.scope)
+			if tt.metadata != nil {
+				req.Metadata = tt.metadata
+			}
 			raw, errMarshal := json.Marshal(req)
 			if errMarshal != nil {
 				t.Fatal(errMarshal)
@@ -111,11 +110,17 @@ func TestCallerRuleOrdering(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			configureYAML(t, "rules:\n"+tt.rules)
 			req := interceptRequestFor(formatOpenAIResponses, tt.model, tt.model, `{"instructions":"client","input":"hi"}`)
-			req.CallerScope = tt.scope
+			withCallerScope(&req, tt.scope)
 			resp := decide(req)
 			if got := gjson.GetBytes(resp.Body, "instructions").String(); got != "client\n\n"+tt.want {
 				t.Fatalf("instructions = %q, want %q", got, "client\n\n"+tt.want)
 			}
 		})
+	}
+}
+
+func withCallerScope(req *pluginapi.RequestInterceptRequest, scope string) {
+	if scope != "" {
+		req.Metadata = map[string]any{"caller_scope": scope}
 	}
 }

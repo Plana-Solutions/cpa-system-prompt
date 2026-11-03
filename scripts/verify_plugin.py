@@ -66,7 +66,7 @@ def main():
             "Body": base64.b64encode(b'{"input":"hi"}').decode(),
         }
         if scope is not None:
-            request["CallerScope"] = scope
+            request["Metadata"] = {"caller_scope": scope}
         if metadata is not None:
             request["Metadata"] = metadata
         result = call("request.intercept_after", request)
@@ -76,6 +76,8 @@ def main():
     version = json.loads(Path("registry.json").read_text())["plugins"][0]["version"]
     registration = call("plugin.register", {})
     assert registration["metadata"]["Version"] == version, registration
+    # Plana's CPA v8.0.38 refuses any schema above 6 and leaves the plugin unregistered.
+    assert registration["schema_version"] <= 6, registration["schema_version"]
     scope = "a" * 64
     org = {"models": ["*"], "prompt": "organization"}
     personal = {"models": ["*"], "callers": [scope], "prompt": "personal"}
@@ -84,7 +86,6 @@ def main():
     assert instructions("b" * 64) == "organization"
     assert instructions() == "organization"
     assert instructions(metadata={"caller_scope": scope}) == "organization\n\npersonal"
-    assert instructions("b" * 64, {"caller_scope": scope}) == "organization"
 
     for callers in ([], None, [scope, "invalid"]):
         configure([org, {**personal, "callers": callers}])

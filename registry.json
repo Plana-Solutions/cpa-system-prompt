@@ -6,7 +6,7 @@
       "name": "System Prompts (Plana ARM64)",
       "description": "Plana ARM64 build of whexy's system-prompt plugin with optional per-client caller scopes.",
       "author": "Whexy / Plana-Solutions",
-      "version": "0.1.0-plana.1",
+      "version": "0.1.0-plana.2",
       "repository": "https://github.com/Plana-Solutions/cpa-system-prompt",
       "homepage": "https://github.com/Plana-Solutions/cpa-system-prompt",
       "license": "MIT",

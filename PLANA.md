@@ -81,3 +81,9 @@ go vet ./...
 go test -count=1 ./...
 go test -count=1 -race ./...
 ```
+
+## Known limitation: raw Anthropic-format clients on cloaked accounts
+
+Plana's Claude upstream uses OAuth accounts, so CPA cloaks every caller it does not recognize as Claude Code. Cloaking replaces the top-level `system` with Claude Code's identity and moves the caller's system text, including the prompt this plugin appended, into a `role: system` turn after the first user turn. Under OAuth that placement is fixed (CPA v8.0.38 `claude_executor_cloaking.go:1844`, upstream issue #6432), and no plugin setting can keep the text at the top.
+
+Real clients are unaffected. Claude Code is not cloaked and keeps the rule in `system`; Codex and the OpenAI-format endpoints do not take this path. A hand-written `/v1/messages` call with a small `max_tokens` can fail to follow the rule, because Haiku 5.5 spends its default adaptive thinking on the relocated text and hits the limit before answering. Measured on 2026-11-03: `max_tokens: 200` obeyed 0 of 4; `max_tokens: 2000` obeyed 7 of 8; `thinking: {type: "disabled"}` at 200 obeyed 7 of 8. Raw clients should send a realistic `max_tokens` (1,000 or more) or disable thinking.

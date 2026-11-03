@@ -1,0 +1,79 @@
+name: ARM64 release
+
+on:
+  push:
+    tags: ["v*-plana.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  binaries:
+    runs-on: depot-ubuntu-24.04-arm-4
+    container: golang:1.26.10-bookworm
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install build and verification tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends zip file python3
+      - name: Verify native ARM64 and run Go checks
+        working-directory: go
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = aarch64
+          unset GOCACHEPROG
+          test "$(go env GOVERSION)" = "go$(awk '/^go / {print $2}' go.mod)"
+          go vet ./...
+          go test -count=1 -v ./...
+          go test -count=1 -race ./...
+      - name: Build and verify the shared plugin
+        run: |
+          set -euo pipefail
+          mkdir dist
+          unset GOCACHEPROG
+          (
+            cd go
+            CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -trimpath -buildvcs=false -buildmode=c-shared -o ../dist/system-prompt.so .
+          )
+          file dist/system-prompt.so | tee dist/file.txt
+          grep -Eq 'ELF 64-bit LSB shared object, ARM aarch64' dist/file.txt
+          python3 scripts/verify_plugin.py dist/system-prompt.so
+      - name: Package with CLIProxyAPI checksum filenames
+        run: |
+          set -euo pipefail
+          version="$(python3 -c 'import json; print(json.load(open("registry.json"))["plugins"][0]["version"])')"
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then test "$GITHUB_REF_NAME" = "v${version}"; fi
+          cp LICENSE dist/LICENSE
+          (
+            cd dist
+            zip -X "system-prompt_${version}_linux_arm64.zip" system-prompt.so LICENSE
+            sha256sum -- *.zip > checksums.txt
+            sha256sum --check checksums.txt
+          )
+      - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: system-prompt-linux-arm64
+          path: dist/
+          if-no-files-found: error
+      - name: Publish verified ARM64 assets
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          files: |
+            dist/system-prompt_*_linux_arm64.zip
+            dist/checksums.txt
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write

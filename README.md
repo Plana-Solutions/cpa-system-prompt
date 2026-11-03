@@ -1,5 +1,9 @@
 # System Prompts
 
+This is Plana's linux/arm64 fork of [whexy's system-prompt plugin](https://github.com/whexy/whexy-cpa-store/tree/51ea66ad0df8aaea0719b7589a5f49c653e3ee20/plugins/system-prompt).
+See [PLANA.md](PLANA.md) for installation, optional per-client `callers` selectors, and release details.
+The upstream documentation follows.
+
 A CLIProxyAPI plugin that appends your own text to the system prompt of
 requests for the models you choose. It edits the request as the client sent it,
 before CLIProxyAPI translates it for the upstream or applies Claude cloaking, so
